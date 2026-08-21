@@ -1,62 +1,95 @@
 package com.minidb.cli;
 
+import com.minidb.tokenizer.Tokenizer;
+import com.minidb.parser.Parser;
+import com.minidb.command.Command;
+import com.minidb.executor.Executor;
+import com.minidb.storage.StorageEngine;
+import com.minidb.exception.SyntaxException;
+import com.minidb.exception.StorageException;
+
 import java.util.Scanner;
 
-import static java.lang.Thread.sleep;
-
 public class Cli {
+
     private final Scanner scanner;
+    private final Executor executor;
     private boolean running;
 
-    public Cli(){
+    public Cli() {
         this.scanner = new Scanner(System.in);
+        this.executor = new Executor(new StorageEngine());
         this.running = true;
     }
 
-    public void start() throws InterruptedException {
+    public void start() {
         printWelcome();
 
-        while (running){
+        while (running) {
             System.out.print("MiniDB> ");
             String input = scanner.nextLine().trim();
 
-            if(input.isEmpty()){
+            if (input.isEmpty()) {
                 continue;
             }
+
             handleInput(input);
         }
 
-        System.out.println("Closing MiniDB....");
-        sleep(1000);
-        System.out.println("Thank You for using MiniDB");
+        scanner.close();
+        System.out.println("Goodbye.");
     }
 
-    public void handleInput(String input){
-        String command = input.endsWith(";")?input.substring(0, input.length()-1) : input;
-        String upper = command.toUpperCase();
+    private void handleInput(String input) {
+        String upperNoSemicolon = input.replace(";", "").trim().toUpperCase();
 
-        switch (upper){
-            case "EXIT":
-                running = false;
-                break;
-            case "HELP":
-                printHelp();
-                break;
-            default:
-                System.out.println("[Error] Unknown command: " + input);
-                System.out.println("Type HELP to see available commands.");
+        if (upperNoSemicolon.equals("EXIT")) {
+            running = false;
+            return;
+        }
+        if (upperNoSemicolon.equals("HELP")) {
+            printHelp();
+            return;
+        }
+
+        try {
+            Tokenizer tokenizer = new Tokenizer(input);
+            Parser parser = new Parser(tokenizer.tokenize());
+            Command command = parser.parse();
+            String result = executor.execute(command);
+            if (!result.isBlank()) {
+                System.out.println(result);
+            }
+        } catch (SyntaxException e) {
+            System.out.println("[SYNTAX ERROR] " + e.getMessage());
+        } catch (StorageException e) {
+            System.out.println("[STORAGE ERROR] " + e.getMessage());
+        } catch (Exception e) {
+            System.out.println("[ERROR] " + e.getMessage());
         }
     }
 
-    public void printWelcome(){
-        System.out.println("~~ Welcome to the MiniDB ~~");
-        System.out.println("Type HELP Or EXIT for actions.");
+    private void printWelcome() {
+        System.out.println("=================================");
+        System.out.println(" MiniDB v0.4 - Lightweight SQL Engine");
+        System.out.println(" Type HELP for commands, EXIT to quit.");
+        System.out.println("=================================");
     }
 
-    public void printHelp(){
-        System.out.println("Available commands: ");
-        System.out.println("    HELP - show this message");
-        System.out.println("    EXIT - quit MiniDB");
-        System.out.println("    (more commands coming in future sprints)");
+    private void printHelp() {
+        System.out.println("Available commands:");
+        System.out.println("  CREATE DATABASE <name>;");
+        System.out.println("  USE <name>;");
+        System.out.println("  DROP DATABASE <name>;");
+        System.out.println("  SHOW DATABASES;");
+        System.out.println("  CREATE TABLE <name> (col TYPE [PRIMARY KEY], ...);");
+        System.out.println("  DROP TABLE <name>;");
+        System.out.println("  SHOW TABLES;");
+        System.out.println("  DESCRIBE <table>;");
+        System.out.println("  INSERT INTO <table> VALUES (...);");
+        System.out.println("  SELECT * FROM <table>;");
+        System.out.println("  DELETE FROM <table>;");
+        System.out.println("  HELP");
+        System.out.println("  EXIT");
     }
 }
