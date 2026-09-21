@@ -18,9 +18,11 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 
 ✅ Sprint 3 — Storage Engine & Persistence
 
-🚧 Sprint 4 — Indexing (Next)
+✅ Sprint 4 — Full CRUD (UPDATE, DELETE with WHERE, Primary Key Enforcement)
 
-**Current Version:** `v0.4`
+🚧 Sprint 5 — Advanced WHERE Filtering (Next)
+
+**Current Version:** `v0.5`
 
 ---
 
@@ -100,6 +102,48 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 - Executor layer connecting Commands to storage operations
 - End-to-end SQL execution pipeline
 
+### Sprint 4 — Full CRUD
+
+- `UPDATE ... SET ... WHERE column = value` support
+  - Single or multiple comma-separated assignments
+    (`SET name='Jonathan', salary=70000`)
+  - Omitting `WHERE` updates all rows
+- `DELETE FROM ... WHERE column = value` support
+  - Omitting `WHERE` deletes all rows
+- `WhereClause` model
+  - Equality matching, single condition
+  - Matching logic encapsulated in `WhereClause.matches()` so Sprint 5 can extend it with `>`, `<`, `>=`, `<=` without changing callers
+- Primary key uniqueness enforced on `INSERT`
+  - Duplicate keys are rejected with a `StorageException`
+- New `UpdateCommand`; `DeleteCommand` now carries an optional `WhereClause`
+- Parser additions: `parseUpdate()` and a reusable `parseOptionalWhereClause()` helper
+- Executor support for `UPDATE`, `DELETE` with `WHERE`, and PK validation on `INSERT`
+- Parser and Executor unit tests covering the full CRUD lifecycle
+
+**Known limitation:** every `UPDATE` and `DELETE` currently reads all rows and rewrites the whole table file (O(n)). This is correct but not optimized, and is not yet safe for concurrent access.
+
+---
+
+## Example Session
+
+```sql
+CREATE DATABASE company;
+USE company;
+CREATE TABLE employees (id INT PRIMARY KEY, name STRING, salary DOUBLE);
+INSERT INTO employees VALUES(1, 'John', 50000);
+INSERT INTO employees VALUES(2, 'Priya', 62000);
+INSERT INTO employees VALUES(1, 'Duplicate', 10000);  -- rejected: duplicate primary key
+UPDATE employees SET salary=65000 WHERE id=1;
+SELECT * FROM employees;
+DELETE FROM employees WHERE id=2;
+SELECT * FROM employees;
+EXIT
+```
+
+---
+
+## Architecture
+
 ```text
 SQL
  ↓
@@ -114,3 +158,4 @@ Executor
 StorageEngine
  ↓
 Disk
+```

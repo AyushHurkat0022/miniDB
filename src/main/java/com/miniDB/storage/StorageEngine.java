@@ -5,12 +5,10 @@ import com.minidb.model.Row;
 import com.minidb.model.TableSchema;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -195,5 +193,29 @@ public class StorageEngine {
 
     private Path tableDataPath(String tableName) {
         return Path.of(DATA_ROOT, currentDatabase, tableName + ".data");
+    }
+
+    public void validatePrimaryKeyUnique(TableSchema schema, List<String> newValues){
+        int pkIndex = -1;
+        for(int i=0; i<schema.getColumns().size(); i++){
+            if(schema.getColumns().get(i).isPrimaryKey()){
+                pkIndex = i;
+                break;
+            }
+        }
+
+        if(pkIndex==-1){
+            return;
+        }
+
+        String newPkValue = newValues.get(pkIndex);
+        List<Row> existingRows = readAllRows(schema.getTableName());
+        for(Row row: existingRows){
+            if(row.getValues().get(pkIndex).equals(newPkValue)){
+                throw new StorageException(
+                        "Duplicate primary key value '" + newPkValue + "' for table " + schema.getTableName()
+                );
+            }
+        }
     }
 }

@@ -3,9 +3,9 @@ package com.minidb.parser;
 import com.minidb.command.*;
 import com.minidb.exception.SyntaxException;
 import com.minidb.model.ColumnDefinition;
+import com.minidb.model.WhereClause;
 import com.minidb.tokenizer.Token;
 import com.minidb.tokenizer.TokenType;
-
 import java.util.List;
 import java.util.ArrayList;
 
@@ -68,6 +68,8 @@ public class Parser {
                 return parseSelect();
             case "DELETE":
                 return parseDelete();
+            case "UPDATE":
+                return parseUpdate();
             default:
                 throw new SyntaxException("Unsupported Command: " + first);
         }
@@ -205,6 +207,36 @@ public class Parser {
         return new InsertCommand(tableName, values);
     }
 
+    private Command parseUpdate(){
+        expect(TokenType.KEYWORD, "UPDATE");
+        String tableName = expect(TokenType.IDENTIFIER, null).getValue();
+        expect(TokenType.KEYWORD, "SET");
+
+        List<String> setColumns = new ArrayList<>();
+        List<String> setValues = new ArrayList<>();
+
+        while(true){
+            String column = expect(TokenType.IDENTIFIER, null).getValue();
+            expect(TokenType.SYMBOL, "=");
+            Token valueToken = advance();
+            if(valueToken.getType()!=TokenType.NUMBER && valueToken.getType()!=TokenType.STRING){
+                throw new SyntaxException("Expected a value after '=' but found " + valueToken);
+            }
+            setColumns.add(column);
+            setValues.add(valueToken.getValue());
+
+            if(check(TokenType.SYMBOL, ",")){
+                advance();
+                continue;
+            }
+            break;
+        }
+
+        WhereClause whereClause = parseOptionalWhereClause();
+        expectSemicolon();
+        return new UpdateCommand(tableName, setColumns, setValues, whereClause);
+    }
+
     private Command parseSelect(){
         expect(TokenType.KEYWORD, "SELECT");
 
@@ -234,8 +266,26 @@ public class Parser {
         expect(TokenType.KEYWORD, "DELETE");
         expect(TokenType.KEYWORD, "FROM");
         String tableName = expect(TokenType.IDENTIFIER, null).getValue();
+        WhereClause whereClause = parseOptionalWhereClause();
         expectSemicolon();
-        return new DeleteCommand(tableName);
+        return new DeleteCommand(tableName, whereClause);
+    }
+
+    private WhereClause parseOptionalWhereClause(){
+        if(!check(TokenType.KEYWORD, "WHERE")){
+            return null;
+        }
+        advance();
+
+        String column = expect(TokenType.IDENTIFIER, null).getValue();
+        expect(TokenType.SYMBOL, "=");
+        Token valueToken = advance();
+
+        if(valueToken.getType() != TokenType.NUMBER && valueToken.getType() != TokenType.STRING){
+            throw new SyntaxException("Expected a value after '=' but found " + valueToken);
+        }
+
+        return new WhereClause(column, valueToken.getValue());
     }
 }
 

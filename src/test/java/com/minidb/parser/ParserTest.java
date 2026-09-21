@@ -4,6 +4,9 @@ import com.minidb.tokenizer.Tokenizer;
 import com.minidb.command.*;
 import com.minidb.exception.SyntaxException;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ParserTest {
@@ -84,5 +87,42 @@ public class ParserTest {
     @Test
     public void throwsSyntaxExceptionOnGarbage() {
         assertThrows(SyntaxException.class, () -> parse("BANANA employees;"));
+    }
+
+    @Test
+    public void parsesDeleteWithWhere() {
+        Command cmd = parse("DELETE FROM employees WHERE id=1;");
+        assertTrue(cmd instanceof DeleteCommand);
+        DeleteCommand deleteCmd = (DeleteCommand) cmd;
+        assertEquals("employees", deleteCmd.getTableName());
+        assertNotNull(deleteCmd.getWhereClause());
+        assertEquals("id", deleteCmd.getWhereClause().getColumn());
+        assertEquals("1", deleteCmd.getWhereClause().getValue());
+    }
+
+    @Test
+    public void parsesDeleteWithoutWhere() {
+        Command cmd = parse("DELETE FROM employees;");
+        DeleteCommand deleteCmd = (DeleteCommand) cmd;
+        assertNull(deleteCmd.getWhereClause());
+    }
+
+    @Test
+    public void parsesUpdateSingleColumn() {
+        Command cmd = parse("UPDATE employees SET salary=65000 WHERE id=1;");
+        assertTrue(cmd instanceof UpdateCommand);
+        UpdateCommand updateCmd = (UpdateCommand) cmd;
+        assertEquals("employees", updateCmd.getTableName());
+        assertEquals(List.of("salary"), updateCmd.getSetColumns());
+        assertEquals(List.of("65000"), updateCmd.getSetValues());
+        assertEquals("id", updateCmd.getWhereClause().getColumn());
+    }
+
+    @Test
+    public void parsesUpdateMultipleColumns() {
+        Command cmd = parse("UPDATE employees SET name='Jonathan', salary=70000 WHERE id=1;");
+        UpdateCommand updateCmd = (UpdateCommand) cmd;
+        assertEquals(2, updateCmd.getSetColumns().size());
+        assertEquals("Jonathan", updateCmd.getSetValues().get(0));
     }
 }
