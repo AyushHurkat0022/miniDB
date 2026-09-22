@@ -55,9 +55,9 @@ public class ExecutorTest {
         executor.execute(new InsertCommand("employees", List.of("2", "Priya", "62000")));
 
         executor.execute(new UpdateCommand("employees", List.of("salary"), List.of("65000"),
-                new WhereClause("id", "1")));
+                new WhereClause("id", "=", "1")));
 
-        String result = executor.execute(new SelectCommand("employees", List.of("*")));
+        String result = executor.execute(new SelectCommand("employees", List.of("*"), null));
         assertTrue(result.contains("65000"));
         assertTrue(result.contains("62000")); // Priya untouched
     }
@@ -67,9 +67,9 @@ public class ExecutorTest {
         executor.execute(new InsertCommand("employees", List.of("1", "John", "50000")));
         executor.execute(new InsertCommand("employees", List.of("2", "Priya", "62000")));
 
-        executor.execute(new DeleteCommand("employees", new WhereClause("id", "2")));
+        executor.execute(new DeleteCommand("employees", new WhereClause("id", "=", "2")));
 
-        String result = executor.execute(new SelectCommand("employees", List.of("*")));
+        String result = executor.execute(new SelectCommand("employees", List.of("*"), null));
         assertFalse(result.contains("Priya"));
         assertTrue(result.contains("John"));
     }
@@ -81,7 +81,7 @@ public class ExecutorTest {
 
         executor.execute(new DeleteCommand("employees", null));
 
-        String result = executor.execute(new SelectCommand("employees", List.of("*")));
+        String result = executor.execute(new SelectCommand("employees", List.of("*"), null));
         // header line only, no data rows
         assertEquals(1, result.split("\n").length);
     }

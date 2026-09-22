@@ -258,8 +258,9 @@ public class Parser {
         }
         expect(TokenType.KEYWORD, "FROM");
         String tableName = expect(TokenType.IDENTIFIER, null).getValue();
+        WhereClause whereClause = parseOptionalWhereClause();
         expectSemicolon();
-        return new SelectCommand(tableName,cols);
+        return new SelectCommand(tableName,cols, whereClause);
     }
 
     private Command parseDelete(){
@@ -278,14 +279,27 @@ public class Parser {
         advance();
 
         String column = expect(TokenType.IDENTIFIER, null).getValue();
-        expect(TokenType.SYMBOL, "=");
+        String operator = parseComparisonOperator();
         Token valueToken = advance();
 
         if(valueToken.getType() != TokenType.NUMBER && valueToken.getType() != TokenType.STRING){
             throw new SyntaxException("Expected a value after '=' but found " + valueToken);
         }
 
-        return new WhereClause(column, valueToken.getValue());
+        return new WhereClause(column, operator, valueToken.getValue());
+    }
+
+    private String parseComparisonOperator(){
+        Token token = peek();
+        if(token.getType()!=TokenType.SYMBOL){
+            throw new SyntaxException("Expected a comparision operator (=, >, <, >=, <=) but found "+ token);
+        }
+        String value = token.getValue();
+        if(!value.equals("=") && !value.equals(">") && !value.equals("<") && !value.equals(">=") && !value.equals("<=")){
+            throw new SyntaxException("Unsupported operator: " + value);
+        }
+        advance();
+        return value;
     }
 }
 

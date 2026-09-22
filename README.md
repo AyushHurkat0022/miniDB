@@ -20,9 +20,11 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 
 ✅ Sprint 4 — Full CRUD (UPDATE, DELETE with WHERE, Primary Key Enforcement)
 
-🚧 Sprint 5 — Advanced WHERE Filtering (Next)
+✅ Sprint 5 — WHERE Operators & SELECT Filtering
 
-**Current Version:** `v0.5`
+🚧 Sprint 6 — Compound Conditions (`AND` / `OR`) (Planned)
+
+**Current Version:** `v0.6`
 
 ---
 
@@ -51,7 +53,7 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 - Support for:
   - String literals (`'John'`)
   - Numeric values (`123`, `50000.75`)
-  - SQL punctuation and operators
+  - SQL punctuation and operators (including two-character `>=` and `<=`)
 - Comprehensive JUnit 5 tests
 
 ### Sprint 2 — Parser & Command Model
@@ -111,8 +113,8 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 - `DELETE FROM ... WHERE column = value` support
   - Omitting `WHERE` deletes all rows
 - `WhereClause` model
-  - Equality matching, single condition
-  - Matching logic encapsulated in `WhereClause.matches()` so Sprint 5 can extend it with `>`, `<`, `>=`, `<=` without changing callers
+  - Single-condition matching
+  - Matching logic encapsulated in `WhereClause.matches()` so it can be extended without changing callers
 - Primary key uniqueness enforced on `INSERT`
   - Duplicate keys are rejected with a `StorageException`
 - New `UpdateCommand`; `DeleteCommand` now carries an optional `WhereClause`
@@ -120,7 +122,29 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 - Executor support for `UPDATE`, `DELETE` with `WHERE`, and PK validation on `INSERT`
 - Parser and Executor unit tests covering the full CRUD lifecycle
 
-**Known limitation:** every `UPDATE` and `DELETE` currently reads all rows and rewrites the whole table file (O(n)). This is correct but not optimized, and is not yet safe for concurrent access.
+### Sprint 5 — WHERE Operators & SELECT Filtering
+
+- `WhereClause` now carries an operator and supports:
+  - `=` (exact string equality)
+  - `>`, `<`, `>=`, `<=` (numeric comparison)
+- `SELECT ... FROM ... WHERE column <op> value` filtering
+  - Works with `SELECT *` and with specific column lists
+  - Omitting `WHERE` returns all rows
+- `UPDATE` and `DELETE` gained numeric comparison support automatically, with no changes to their executor code, because all matching goes through `WhereClause.matches()`
+- Parser additions:
+  - `parseComparisonOperator()` validates the operator token
+  - `parseOptionalWhereClause()` generalized to `WHERE <column> <operator> <value>`
+  - `parseSelect()` now accepts an optional `WHERE`
+- `SelectCommand` now carries an optional `WhereClause`
+- Numeric operators on non-numeric values (e.g. `WHERE name > 50`) fail loudly with an error instead of silently returning no rows
+- No tokenizer changes were needed; `>=` and `<=` were already single symbol tokens
+- New isolated unit tests for `WhereClause` (no parser or storage involved) plus new parser tests for operator parsing
+
+**Known limitations:**
+
+- Only a single `WHERE` condition is supported (no `AND` / `OR` yet)
+- Every `UPDATE` and `DELETE` reads all rows and rewrites the whole table file (O(n)). This is correct but not optimized, and is not yet safe for concurrent access.
+- `SELECT` with `WHERE` performs a full table scan (no indexes)
 
 ---
 
@@ -132,13 +156,28 @@ USE company;
 CREATE TABLE employees (id INT PRIMARY KEY, name STRING, salary DOUBLE);
 INSERT INTO employees VALUES(1, 'John', 50000);
 INSERT INTO employees VALUES(2, 'Priya', 62000);
+INSERT INTO employees VALUES(3, 'Amit', 45000);
 INSERT INTO employees VALUES(1, 'Duplicate', 10000);  -- rejected: duplicate primary key
+SELECT * FROM employees WHERE salary>50000;           -- Priya
+SELECT * FROM employees WHERE salary<=50000;          -- John, Amit
+SELECT name FROM employees WHERE id=2;                -- Priya
 UPDATE employees SET salary=65000 WHERE id=1;
-SELECT * FROM employees;
-DELETE FROM employees WHERE id=2;
+DELETE FROM employees WHERE salary<50000;             -- removes Amit
 SELECT * FROM employees;
 EXIT
 ```
+
+---
+
+## Supported WHERE Operators
+
+| Operator | Meaning               | Comparison |
+|----------|-----------------------|------------|
+| `=`      | Equal                 | String     |
+| `>`      | Greater than          | Numeric    |
+| `<`      | Less than             | Numeric    |
+| `>=`     | Greater than or equal | Numeric    |
+| `<=`     | Less than or equal    | Numeric    |
 
 ---
 
@@ -159,3 +198,5 @@ StorageEngine
  ↓
 Disk
 ```
+
+---

@@ -125,4 +125,27 @@ public class ParserTest {
         assertEquals(2, updateCmd.getSetColumns().size());
         assertEquals("Jonathan", updateCmd.getSetValues().get(0));
     }
+
+    @Test
+    public void parsesSelectWithGreaterThan() {
+        Command cmd = parse("SELECT * FROM employees WHERE salary>50000;");
+        SelectCommand selectCmd = (SelectCommand) cmd;
+        assertNotNull(selectCmd.getWhereClause());
+        assertEquals(">", selectCmd.getWhereClause().getOperator());
+        assertEquals("50000", selectCmd.getWhereClause().getValue());
+    }
+
+    @Test
+    public void parsesSelectWithGreaterThanOrEqual() {
+        Command cmd = parse("SELECT * FROM employees WHERE salary>=50000;");
+        SelectCommand selectCmd = (SelectCommand) cmd;
+        assertEquals(">=", selectCmd.getWhereClause().getOperator());
+    }
+
+    @Test
+    public void parsesSelectWithoutWhere() {
+        Command cmd = parse("SELECT * FROM employees;");
+        SelectCommand selectCmd = (SelectCommand) cmd;
+        assertNull(selectCmd.getWhereClause());
+    }
 }

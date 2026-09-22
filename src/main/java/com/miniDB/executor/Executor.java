@@ -75,7 +75,11 @@ public class Executor {
 
     private String executeSelect(SelectCommand cmd) {
         TableSchema schema = storageEngine.getTableSchema(cmd.getTableName());
-        List<Row> rows = storageEngine.readAllRows(cmd.getTableName());
+        List<Row> allRows = storageEngine.readAllRows(cmd.getTableName());
+
+        List<Row> filteredRows = allRows.stream()
+                .filter(row -> rowMatchesWhere(row,schema,cmd.getWhereClause()))
+                .collect(Collectors.toList());
 
         boolean allColumns = cmd.getColumns().size() == 1 && cmd.getColumns().get(0).equals("*");
         List<String> columnNames = allColumns
@@ -85,7 +89,7 @@ public class Executor {
         StringBuilder sb = new StringBuilder();
         sb.append(String.join(" | ", columnNames)).append("\n");
 
-        for (Row row : rows) {
+        for (Row row : allRows) {
             List<String> rowValues = columnNames.stream()
                     .map(colName -> row.getValues().get(schema.getColumnIndex(colName)))
                     .collect(Collectors.toList());
