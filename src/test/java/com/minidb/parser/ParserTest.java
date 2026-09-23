@@ -148,4 +148,28 @@ public class ParserTest {
         SelectCommand selectCmd = (SelectCommand) cmd;
         assertNull(selectCmd.getWhereClause());
     }
+
+    @Test
+    public void parsesOrderByDescending() {
+        Command cmd = parse("SELECT * FROM employees ORDER BY salary DESC;");
+        SelectCommand selectCmd = (SelectCommand) cmd;
+        assertNotNull(selectCmd.getOrderByClause());
+        assertEquals("salary", selectCmd.getOrderByClause().getColumn());
+        assertTrue(selectCmd.getOrderByClause().isDescending());
+    }
+
+    @Test
+    public void parsesOrderByDefaultsToAscending() {
+        Command cmd = parse("SELECT * FROM employees ORDER BY salary;");
+        SelectCommand selectCmd = (SelectCommand) cmd;
+        assertFalse(selectCmd.getOrderByClause().isDescending());
+    }
+
+    @Test
+    public void parsesWhereAndOrderByTogether() {
+        Command cmd = parse("SELECT * FROM employees WHERE salary>40000 ORDER BY salary DESC;");
+        SelectCommand selectCmd = (SelectCommand) cmd;
+        assertNotNull(selectCmd.getWhereClause());
+        assertNotNull(selectCmd.getOrderByClause());
+    }
 }

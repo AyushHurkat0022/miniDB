@@ -1,5 +1,5 @@
 package com.minidb.executor;
-
+import java.util.Comparator;
 import com.minidb.command.*;
 import com.minidb.model.Row;
 import com.minidb.model.TableSchema;
@@ -77,10 +77,15 @@ public class Executor {
         TableSchema schema = storageEngine.getTableSchema(cmd.getTableName());
         List<Row> allRows = storageEngine.readAllRows(cmd.getTableName());
 
+        // 1. Filter
         List<Row> filteredRows = allRows.stream()
-                .filter(row -> rowMatchesWhere(row,schema,cmd.getWhereClause()))
+                .filter(row -> rowMatchesWhere(row, schema, cmd.getWhereClause()))
                 .collect(Collectors.toList());
 
+        // 2. Sort
+        List<Row> sortedRows = sortRows(filteredRows, schema, cmd.getOrderByClause());
+
+        // 3. Project
         boolean allColumns = cmd.getColumns().size() == 1 && cmd.getColumns().get(0).equals("*");
         List<String> columnNames = allColumns
                 ? schema.getColumns().stream().map(c -> c.getName()).collect(Collectors.toList())
@@ -89,7 +94,7 @@ public class Executor {
         StringBuilder sb = new StringBuilder();
         sb.append(String.join(" | ", columnNames)).append("\n");
 
-        for (Row row : allRows) {
+        for (Row row : sortedRows) {
             List<String> rowValues = columnNames.stream()
                     .map(colName -> row.getValues().get(schema.getColumnIndex(colName)))
                     .collect(Collectors.toList());
@@ -97,6 +102,39 @@ public class Executor {
         }
 
         return sb.toString().stripTrailing();
+    }
+
+    private List<Row> sortRows(List<Row> rows, TableSchema schema, com.minidb.model.OrderByClause orderByClause) {
+        if (orderByClause == null) {
+            return rows; // no ORDER BY, keep original order
+        }
+
+        int colIndex = schema.getColumnIndex(orderByClause.getColumn());
+        if (colIndex == -1) {
+            throw new IllegalStateException("Unknown column in ORDER BY: " + orderByClause.getColumn());
+        }
+
+        String columnType = schema.getColumns().get(colIndex).getType();
+
+        Comparator<Row> comparator = (rowA, rowB) -> {
+            String valueA = rowA.getValues().get(colIndex);
+            String valueB = rowB.getValues().get(colIndex);
+
+            if (columnType.equals("INT") || columnType.equals("DOUBLE")) {
+                double numA = Double.parseDouble(valueA);
+                double numB = Double.parseDouble(valueB);
+                return Double.compare(numA, numB);
+            }
+            return valueA.compareTo(valueB); // STRING: lexicographic
+        };
+
+        if (orderByClause.isDescending()) {
+            comparator = comparator.reversed();
+        }
+
+        List<Row> sorted = new java.util.ArrayList<>(rows);
+        sorted.sort(comparator);
+        return sorted;
     }
 
     private String executeDelete(DeleteCommand cmd) {

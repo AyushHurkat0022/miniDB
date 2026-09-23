@@ -3,6 +3,7 @@ package com.minidb.parser;
 import com.minidb.command.*;
 import com.minidb.exception.SyntaxException;
 import com.minidb.model.ColumnDefinition;
+import com.minidb.model.OrderByClause;
 import com.minidb.model.WhereClause;
 import com.minidb.tokenizer.Token;
 import com.minidb.tokenizer.TokenType;
@@ -259,8 +260,9 @@ public class Parser {
         expect(TokenType.KEYWORD, "FROM");
         String tableName = expect(TokenType.IDENTIFIER, null).getValue();
         WhereClause whereClause = parseOptionalWhereClause();
+        OrderByClause orderByClause = parseOptionalOrderByClause();
         expectSemicolon();
-        return new SelectCommand(tableName,cols, whereClause);
+        return new SelectCommand(tableName,cols, whereClause, orderByClause);
     }
 
     private Command parseDelete(){
@@ -289,10 +291,31 @@ public class Parser {
         return new WhereClause(column, operator, valueToken.getValue());
     }
 
+    private OrderByClause parseOptionalOrderByClause(){
+        if(!check(TokenType.KEYWORD, "Order")){
+            return null;
+        }
+        advance();
+        expect(TokenType.KEYWORD, "BY");
+
+        String column = expect(TokenType.IDENTIFIER, null).getValue();
+
+        boolean descending = false;
+        if(check(TokenType.KEYWORD, "DESC")){
+            advance();
+            descending = true;
+        }
+        else if(check(TokenType.KEYWORD, "ASC")){
+            advance();
+            descending = false;
+        }
+        return new OrderByClause(column, descending);
+    }
+
     private String parseComparisonOperator(){
         Token token = peek();
         if(token.getType()!=TokenType.SYMBOL){
-            throw new SyntaxException("Expected a comparision operator (=, >, <, >=, <=) but found "+ token);
+            throw new SyntaxException("Expected a comparison operator (=, >, <, >=, <=) but found "+ token);
         }
         String value = token.getValue();
         if(!value.equals("=") && !value.equals(">") && !value.equals("<") && !value.equals(">=") && !value.equals("<=")){

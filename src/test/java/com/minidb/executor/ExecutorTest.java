@@ -57,7 +57,7 @@ public class ExecutorTest {
         executor.execute(new UpdateCommand("employees", List.of("salary"), List.of("65000"),
                 new WhereClause("id", "=", "1")));
 
-        String result = executor.execute(new SelectCommand("employees", List.of("*"), null));
+        String result = executor.execute(new SelectCommand("employees", List.of("*"), null, null));
         assertTrue(result.contains("65000"));
         assertTrue(result.contains("62000")); // Priya untouched
     }
@@ -69,7 +69,7 @@ public class ExecutorTest {
 
         executor.execute(new DeleteCommand("employees", new WhereClause("id", "=", "2")));
 
-        String result = executor.execute(new SelectCommand("employees", List.of("*"), null));
+        String result = executor.execute(new SelectCommand("employees", List.of("*"), null, null));
         assertFalse(result.contains("Priya"));
         assertTrue(result.contains("John"));
     }
@@ -81,8 +81,26 @@ public class ExecutorTest {
 
         executor.execute(new DeleteCommand("employees", null));
 
-        String result = executor.execute(new SelectCommand("employees", List.of("*"), null));
+        String result = executor.execute(new SelectCommand("employees", List.of("*"), null, null));
         // header line only, no data rows
         assertEquals(1, result.split("\n").length);
+    }
+
+    @Test
+    public void selectOrdersByColumnDescending() {
+        executor.execute(new InsertCommand("employees", List.of("1", "John", "50000")));
+        executor.execute(new InsertCommand("employees", List.of("2", "Priya", "62000")));
+        executor.execute(new InsertCommand("employees", List.of("3", "Amit", "45000")));
+
+        String result = executor.execute(
+                new SelectCommand("employees", List.of("name"), null,
+                        new com.minidb.model.OrderByClause("salary", true)));
+
+        List<String> lines = List.of(result.split("\n"));
+        // header, then Priya (62000) first, John (50000) second, Amit (45000) last
+        assertEquals("name", lines.get(0));
+        assertEquals("Priya", lines.get(1));
+        assertEquals("John", lines.get(2));
+        assertEquals("Amit", lines.get(3));
     }
 }
