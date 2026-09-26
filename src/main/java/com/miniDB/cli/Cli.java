@@ -8,6 +8,7 @@ import com.minidb.storage.StorageEngine;
 import com.minidb.exception.SyntaxException;
 import com.minidb.exception.StorageException;
 
+import java.util.List;
 import java.util.Scanner;
 
 public class Cli {
@@ -15,6 +16,7 @@ public class Cli {
     private final Scanner scanner;
     private final Executor executor;
     private boolean running;
+    private final List<String> commandHistory = new java.util.ArrayList<>();
 
     public Cli() {
         this.scanner = new Scanner(System.in);
@@ -41,6 +43,8 @@ public class Cli {
     }
 
     private void handleInput(String input) {
+        commandHistory.add(input);
+
         String upperNoSemicolon = input.replace(";", "").trim().toUpperCase();
 
         if (upperNoSemicolon.equals("EXIT")) {
@@ -49,6 +53,10 @@ public class Cli {
         }
         if (upperNoSemicolon.equals("HELP")) {
             printHelp();
+            return;
+        }
+        if (upperNoSemicolon.equals("HISTORY")) {
+            printHistory();
             return;
         }
 
@@ -64,8 +72,20 @@ public class Cli {
             System.out.println("[SYNTAX ERROR] " + e.getMessage());
         } catch (StorageException e) {
             System.out.println("[STORAGE ERROR] " + e.getMessage());
+        } catch (IllegalStateException e) {
+            System.out.println("[EXECUTION ERROR] " + e.getMessage());
         } catch (Exception e) {
             System.out.println("[ERROR] " + e.getMessage());
+        }
+    }
+
+    private void printHistory() {
+        if (commandHistory.isEmpty()) {
+            System.out.println("No commands yet.");
+            return;
+        }
+        for (int i = 0; i < commandHistory.size(); i++) {
+            System.out.println((i + 1) + ": " + commandHistory.get(i));
         }
     }
 
@@ -87,8 +107,10 @@ public class Cli {
         System.out.println("  SHOW TABLES;");
         System.out.println("  DESCRIBE <table>;");
         System.out.println("  INSERT INTO <table> VALUES (...);");
-        System.out.println("  SELECT * FROM <table>;");
-        System.out.println("  DELETE FROM <table>;");
+        System.out.println("  SELECT [* | col, ...] FROM <table> [WHERE col OP value] [ORDER BY col [ASC|DESC]];");
+        System.out.println("  UPDATE <table> SET col=value, ... [WHERE col OP value];");
+        System.out.println("  DELETE FROM <table> [WHERE col OP value];");
+        System.out.println("  HISTORY  - show commands run this session");
         System.out.println("  HELP");
         System.out.println("  EXIT");
     }

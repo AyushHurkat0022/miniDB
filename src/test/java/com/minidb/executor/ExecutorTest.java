@@ -103,4 +103,32 @@ public class ExecutorTest {
         assertEquals("John", lines.get(2));
         assertEquals("Amit", lines.get(3));
     }
+
+    @Test
+    public void fullCrudLifecycleWorksTogether() {
+        executor.execute(new InsertCommand("employees", List.of("1", "John", "50000")));
+        executor.execute(new InsertCommand("employees", List.of("2", "Priya", "62000")));
+        executor.execute(new InsertCommand("employees", List.of("3", "Amit", "45000")));
+
+        // WHERE + ORDER BY + projection together
+        String result = executor.execute(new SelectCommand(
+                "employees", List.of("name"),
+                new WhereClause("salary", ">", "40000"),
+                new com.minidb.model.OrderByClause("salary", true)));
+        List<String> lines = List.of(result.split("\n"));
+        assertEquals("Priya", lines.get(1)); // highest salary first
+        assertEquals("Amit", lines.get(3));  // lowest salary last
+
+        // UPDATE then re-SELECT
+        executor.execute(new UpdateCommand("employees", List.of("salary"), List.of("100000"),
+                new WhereClause("id", "=", "3")));
+        String afterUpdate = executor.execute(new SelectCommand(
+                "employees", List.of("*"), new WhereClause("id", "=", "3"), null));
+        assertTrue(afterUpdate.contains("100000"));
+
+        // DELETE then confirm gone
+        executor.execute(new DeleteCommand("employees", new WhereClause("id", "=", "1")));
+        String afterDelete = executor.execute(new SelectCommand("employees", List.of("*"), null, null));
+        assertFalse(afterDelete.contains("John"));
+    }
 }

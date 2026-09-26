@@ -17,9 +17,11 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 - ✅ Sprint 4 — Full CRUD (UPDATE, DELETE with WHERE, Primary Key Enforcement)
 - ✅ Sprint 5 — WHERE Operators & SELECT Filtering
 - ✅ Sprint 6 — ORDER BY (ASC/DESC, type-aware sorting)
-- 🚧 Sprint 7 — Compound Conditions (`AND` / `OR`) (Planned)
+- ✅ Sprint 7 — Persistence Proof + Polish (CLI history, consistent errors, regression pass)
+- 🚧 Sprint 8 — Compound Conditions (`AND` / `OR`) (Planned)
 
-**Current Version:** `v0.7`
+## Status
+🚧 In development. Currently: v0.8 (WHERE, ORDER BY, full CRUD, persistence verified, CLI history).
 
 ---
 
@@ -144,12 +146,45 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 - Parser addition: `parseOptionalOrderByClause()`, following the same optional-clause chaining pattern established by `WHERE`
 - New parser tests (ASC default, DESC, combined with WHERE) and an end-to-end Executor test verifying sort order against real stored rows
 
+### Sprint 7 — Persistence Proof + Polish
+- **Persistence formally verified**, not just assumed:
+  - Full CLI restart (including a fresh terminal session) confirmed via `SELECT`, `SHOW TABLES`, and `DESCRIBE` that all data and schema survive
+  - Raw `.meta` and `.data` files inspected directly with `cat` to confirm on-disk state independent of MiniDB's own output
+  - Crash-recovery tested by `kill -9`'ing the process mid-session immediately after an `INSERT`; the previously committed row survived intact and uncorrupted, with no partial/corrupted writes
+- **Command history** added to the CLI:
+  - In-memory `commandHistory` list recorded on every non-empty input
+  - New `HISTORY` command lists all commands run in the current session, numbered in order
+- **Consistent error handling** across the CLI:
+  - Dedicated `catch` blocks for `SyntaxException` (`[SYNTAX ERROR]`), `StorageException` (`[STORAGE ERROR]`), and `IllegalStateException` (`[EXECUTION ERROR]`), with a generic `[ERROR]` fallback
+  - Audited all thrown exceptions across `Parser`, `StorageEngine`, and `Executor` to ensure messages name the specific offending table/column/value and never leak a raw stack trace or a `null` message
+  - Verified edge cases (e.g. querying a nonexistent table) return a clean, specific error instead of an uncaught exception
+- `HELP` text updated to reflect every feature through Sprint 6 (`WHERE` operators, `ORDER BY`, full CRUD, `HISTORY`), replacing the stale Sprint-0-era text
+- **Regression pass**: full `mvn test` suite plus a manual end-to-end walkthrough exercising every feature together (create/use/drop DB and table, insert, filter, sort, update, delete, history) with no crashes or stack traces
+- New full-pipeline integration test (`fullCrudLifecycleWorksTogether`) verifying `WHERE` + `ORDER BY` + projection + `UPDATE` + `DELETE` all cooperate correctly in combination — something isolated per-feature unit tests can't catch on their own
+
 **Known limitations:**
 - Only a single `WHERE` condition is supported (no `AND` / `OR` yet)
 - Only a single `ORDER BY` column is supported (no multi-column sort, e.g. `ORDER BY dept, salary`)
 - No `LIMIT` clause yet
-- Every `UPDATE` and `DELETE` reads all rows and rewrites the whole table file (O(n)). This is correct but not optimized, and is not yet safe for concurrent access.
+- Every `UPDATE` and `DELETE` reads all rows and rewrites the whole table file (O(n)). This is correct but not optimized, and is not yet safe for concurrent access. A write-ahead log or in-place row updates would be a natural v2 improvement.
 - `SELECT` with `WHERE` or `ORDER BY` performs a full table scan (no indexes)
+
+---
+
+## Persistence
+
+MiniDB writes every INSERT, UPDATE, and DELETE directly to disk (`data/<database>/<table>.data`)
+using `Files.writeString`, with no in-memory buffering between a command and its file write.
+
+Verified manually:
+- Inserted rows, exited the CLI completely, restarted, and confirmed all data and schema
+  (via `SELECT`, `SHOW TABLES`, `DESCRIBE`) were intact.
+- Force-killed the process (`kill -9`) immediately after a single INSERT to simulate a crash
+  mid-session, restarted, and confirmed the previously committed row was intact and uncorrupted.
+
+**Known limitation:** UPDATE and DELETE currently rewrite the entire `.data` file rather than
+modifying a single row in place. This is correct but not efficient for very large tables — a
+write-ahead log or in-place row updates would be a natural v2 improvement.
 
 ---
 
@@ -174,6 +209,7 @@ SELECT name FROM employees WHERE salary>40000 ORDER BY salary ASC;  -- Amit, Joh
 UPDATE employees SET salary=65000 WHERE id=1;
 DELETE FROM employees WHERE salary<50000;             -- removes Amit
 SELECT * FROM employees;
+HISTORY
 EXIT
 ```
 
@@ -198,6 +234,23 @@ EXIT
 | `ORDER BY column DESC`           | Descending                                    |
 
 `ORDER BY` combines freely with `WHERE` and column projection — evaluation order is always **filter → sort → project**.
+
+## CLI Commands
+
+| Command    | Behavior                                   |
+|------------|---------------------------------------------|
+| `HELP`     | Lists all available commands                |
+| `HISTORY`  | Lists every command run so far this session |
+| `EXIT`     | Exits the CLI                               |
+
+## Error Message Format
+
+| Prefix               | Thrown by                          |
+|-----------------------|-------------------------------------|
+| `[SYNTAX ERROR]`      | `SyntaxException` (parser)          |
+| `[STORAGE ERROR]`     | `StorageException` (storage engine) |
+| `[EXECUTION ERROR]`   | `IllegalStateException` (executor)  |
+| `[ERROR]`             | Any other uncaught exception        |
 
 ---
 
