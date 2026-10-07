@@ -10,6 +10,8 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 
 ## Current Status
 
+**v0.8** — WHERE, ORDER BY, full CRUD, persistence verified, CLI history.
+
 - ✅ Sprint 0 — Project Skeleton & CLI
 - ✅ Sprint 1 — SQL Tokenizer
 - ✅ Sprint 2 — Parser & Command Model
@@ -18,10 +20,7 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 - ✅ Sprint 5 — WHERE Operators & SELECT Filtering
 - ✅ Sprint 6 — ORDER BY (ASC/DESC, type-aware sorting)
 - ✅ Sprint 7 — Persistence Proof + Polish (CLI history, consistent errors, regression pass)
-- 🚧 Sprint 8 — Compound Conditions (`AND` / `OR`) (Planned)
-
-## Status
-🚧 In development. Currently: v0.8 (WHERE, ORDER BY, full CRUD, persistence verified, CLI history).
+- 🔜 Sprint 8 — Documentation + v1.0 Release (Planned)
 
 ---
 
@@ -147,10 +146,7 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 - New parser tests (ASC default, DESC, combined with WHERE) and an end-to-end Executor test verifying sort order against real stored rows
 
 ### Sprint 7 — Persistence Proof + Polish
-- **Persistence formally verified**, not just assumed:
-  - Full CLI restart (including a fresh terminal session) confirmed via `SELECT`, `SHOW TABLES`, and `DESCRIBE` that all data and schema survive
-  - Raw `.meta` and `.data` files inspected directly with `cat` to confirm on-disk state independent of MiniDB's own output
-  - Crash-recovery tested by `kill -9`'ing the process mid-session immediately after an `INSERT`; the previously committed row survived intact and uncorrupted, with no partial/corrupted writes
+- Persistence formally verified — see [Persistence](#persistence) below.
 - **Command history** added to the CLI:
   - In-memory `commandHistory` list recorded on every non-empty input
   - New `HISTORY` command lists all commands run in the current session, numbered in order
@@ -173,18 +169,14 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 
 ## Persistence
 
-MiniDB writes every INSERT, UPDATE, and DELETE directly to disk (`data/<database>/<table>.data`)
-using `Files.writeString`, with no in-memory buffering between a command and its file write.
+MiniDB writes every INSERT, UPDATE, and DELETE directly to disk (`data/<database>/<table>.data`) using `Files.writeString`, with no in-memory buffering between a command and its file write.
 
 Verified manually:
-- Inserted rows, exited the CLI completely, restarted, and confirmed all data and schema
-  (via `SELECT`, `SHOW TABLES`, `DESCRIBE`) were intact.
-- Force-killed the process (`kill -9`) immediately after a single INSERT to simulate a crash
-  mid-session, restarted, and confirmed the previously committed row was intact and uncorrupted.
+- Inserted rows, exited the CLI completely, restarted, and confirmed all data and schema (via `SELECT`, `SHOW TABLES`, `DESCRIBE`) were intact.
+- Raw `.meta` and `.data` files were inspected directly with `cat` to confirm on-disk state independent of MiniDB's own output.
+- Force-killed the process (`kill -9`) immediately after a single INSERT to simulate a crash mid-session, restarted, and confirmed the previously committed row was intact and uncorrupted, with no partial/corrupted writes.
 
-**Known limitation:** UPDATE and DELETE currently rewrite the entire `.data` file rather than
-modifying a single row in place. This is correct but not efficient for very large tables — a
-write-ahead log or in-place row updates would be a natural v2 improvement.
+**Known limitation:** UPDATE and DELETE currently rewrite the entire `.data` file rather than modifying a single row in place. This is correct but not efficient for very large tables — a write-ahead log or in-place row updates would be a natural v2 improvement.
 
 ---
 
@@ -227,37 +219,37 @@ EXIT
 
 ## Supported ORDER BY
 
-| Syntax                          | Behavior                                      |
-|----------------------------------|------------------------------------------------|
-| `ORDER BY column`                | Ascending (default), type-aware comparison    |
-| `ORDER BY column ASC`            | Ascending, explicit                           |
-| `ORDER BY column DESC`           | Descending                                    |
+| Syntax                  | Behavior                                   |
+|---------------------------|---------------------------------------------|
+| `ORDER BY column`         | Ascending (default), type-aware comparison |
+| `ORDER BY column ASC`     | Ascending, explicit                        |
+| `ORDER BY column DESC`    | Descending                                 |
 
 `ORDER BY` combines freely with `WHERE` and column projection — evaluation order is always **filter → sort → project**.
 
 ## CLI Commands
 
-| Command    | Behavior                                   |
-|------------|---------------------------------------------|
-| `HELP`     | Lists all available commands                |
-| `HISTORY`  | Lists every command run so far this session |
-| `EXIT`     | Exits the CLI                               |
+| Command   | Behavior                                    |
+|-----------|-----------------------------------------------|
+| `HELP`    | Lists all available commands                  |
+| `HISTORY` | Lists every command run so far this session    |
+| `EXIT`    | Exits the CLI                                  |
 
 ## Error Message Format
 
-| Prefix               | Thrown by                          |
-|-----------------------|-------------------------------------|
-| `[SYNTAX ERROR]`      | `SyntaxException` (parser)          |
-| `[STORAGE ERROR]`     | `StorageException` (storage engine) |
-| `[EXECUTION ERROR]`   | `IllegalStateException` (executor)  |
-| `[ERROR]`             | Any other uncaught exception        |
+| Prefix              | Thrown by                            |
+|----------------------|-----------------------------------------|
+| `[SYNTAX ERROR]`    | `SyntaxException` (parser)              |
+| `[STORAGE ERROR]`   | `StorageException` (storage engine)     |
+| `[EXECUTION ERROR]` | `IllegalStateException` (executor)      |
+| `[ERROR]`           | Any other uncaught exception            |
 
 ---
 
 ## Architecture
 
 ```text
-SQL
+CLI
  ↓
 Tokenizer
  ↓
@@ -271,3 +263,35 @@ StorageEngine
  ↓
 Disk
 ```
+
+| Package | Responsibility |
+|---|---|
+| `cli` | REPL loop, input handling, history, error display |
+| `tokenizer` | Converts SQL text into typed tokens |
+| `parser` | Hand-written recursive-descent parser producing Command objects |
+| `command` | One class per SQL statement type (Command Pattern) |
+| `executor` | Runs commands: filter → sort → project pipeline |
+| `storage` | Reads/writes table files, schema, primary key validation |
+| `model` | Row, TableSchema, ColumnDefinition, WhereClause, OrderByClause |
+| `exception` | SyntaxException, StorageException |
+
+---
+
+## Run it
+
+Requires Java 17+ and Maven.
+
+```bash
+git clone https://github.com/<your-username>/minidb.git
+cd minidb
+mvn compile
+mvn exec:java
+```
+
+## Roadmap
+
+- v1.0 — Documentation pass, packaged jar, demo script (Sprint 8)
+- v1.1 — Hash indexing
+- v1.2 — Transactions (BEGIN / COMMIT / ROLLBACK)
+- v1.3 — Concurrency (read/write locks, thread pool)
+- v2.0 — B+ Tree index, WAL, recovery, client/server mode
