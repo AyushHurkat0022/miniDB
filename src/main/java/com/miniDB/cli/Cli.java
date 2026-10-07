@@ -27,7 +27,7 @@ public class Cli {
     public void start() {
         printWelcome();
 
-        while (running) {
+        while (running && scanner.hasNextLine()) {
             System.out.print("MiniDB> ");
             String input = scanner.nextLine().trim();
 

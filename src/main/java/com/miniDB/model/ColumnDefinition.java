@@ -25,6 +25,6 @@ public class ColumnDefinition {
 
     @Override
     public String toString(){
-        return name + " " + type + (primaryKey ? "PRIMARY KEY" : "");
+        return name + " " + type + (primaryKey ? " PRIMARY KEY" : "");
     }
 }

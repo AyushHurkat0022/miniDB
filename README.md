@@ -1,16 +1,14 @@
 # MiniDB
 
-A lightweight SQL database engine built from scratch in Java 17.
+A lightweight SQL database engine built from scratch in **Java 17** — no Spring, no Hibernate, no JDBC-backed databases, no ANTLR, no third-party SQL parsing libraries.
 
-MiniDB is a learning-focused project that explores how database systems work internally by implementing core database components from scratch, including tokenization, parsing, execution, and persistent storage.
-
-No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing libraries are used.
+MiniDB is a learning-focused project that explores how database systems work internally by implementing core database components from scratch: tokenization, parsing, query execution, and persistent file-based storage.
 
 ---
 
-## Current Status
+## Status
 
-**v0.8** — WHERE, ORDER BY, full CRUD, persistence verified, CLI history.
+**v1.0** — Core SQL engine complete: full CRUD, WHERE operators, ORDER BY, verified persistence, packaged as a runnable jar.
 
 - ✅ Sprint 0 — Project Skeleton & CLI
 - ✅ Sprint 1 — SQL Tokenizer
@@ -20,229 +18,87 @@ No Spring, Hibernate, JDBC-backed databases, ANTLR, or third-party SQL parsing l
 - ✅ Sprint 5 — WHERE Operators & SELECT Filtering
 - ✅ Sprint 6 — ORDER BY (ASC/DESC, type-aware sorting)
 - ✅ Sprint 7 — Persistence Proof + Polish (CLI history, consistent errors, regression pass)
-- 🔜 Sprint 8 — Documentation + v1.0 Release (Planned)
+- ✅ Sprint 8 — Documentation + v1.0 Release (packaged jar, demo script, design notes)
+- 🔜 v1.1 — Hash indexing
+- 🔜 v1.2 — Transactions (BEGIN / COMMIT / ROLLBACK)
+- 🔜 v1.3 — Concurrency (read/write locks, thread pool)
 
 ---
 
-## Features Implemented
+## Features
 
-### Sprint 0 — Project Setup & CLI
-- Maven-based Java 17 project setup
-- Production-style package structure
-- Interactive command-line interface (REPL)
-- `HELP` command
-- `EXIT` command
-- Basic utility and configuration framework
-
-### Sprint 1 — SQL Tokenizer
-- SQL lexical analyzer
-- Token classification:
-  - Keywords
-  - Identifiers
-  - Numbers
-  - Strings
-  - Symbols
-  - EOF marker
-- Case-insensitive SQL keywords
-- Support for:
-  - String literals (`'John'`)
-  - Numeric values (`123`, `50000.75`)
-  - SQL punctuation and operators (including two-character `>=` and `<=`)
-- Comprehensive JUnit 5 tests
-
-### Sprint 2 — Parser & Command Model
-- Recursive-descent SQL parser
-- Custom `SyntaxException`
-- Command Pattern implementation
-- Type-safe command objects
-- Supported statements:
-  - `CREATE DATABASE`
-  - `USE`
-  - `DROP DATABASE`
-  - `CREATE TABLE`
-  - `DROP TABLE`
-  - `SHOW DATABASES`
-  - `SHOW TABLES`
-  - `DESCRIBE`
-  - `INSERT INTO ... VALUES (...)`
-  - `SELECT ... FROM ...`
-  - `DELETE FROM ...`
-- Column definition support:
-  - `INT`
-  - `STRING`
-  - `DOUBLE`
-  - `PRIMARY KEY`
-- Parser unit tests
-
-### Sprint 3 — Storage Engine
-- File-based storage engine
-- Persistent databases stored on disk
-- Human-readable storage format
-- Custom `StorageException`
-- Database management:
-  - Create database
-  - Use database
-  - Drop database
-  - Show databases
-- Table management:
-  - Create table
-  - Drop table
-  - Show tables
-  - Describe table
-- Data operations:
-  - Insert rows
-  - Select rows
-  - Delete all rows from a table
-- Executor layer connecting Commands to storage operations
-- End-to-end SQL execution pipeline
-
-### Sprint 4 — Full CRUD
-- `UPDATE ... SET ... WHERE column = value` support
-  - Single or multiple comma-separated assignments
-    (`SET name='Jonathan', salary=70000`)
-  - Omitting `WHERE` updates all rows
-- `DELETE FROM ... WHERE column = value` support
-  - Omitting `WHERE` deletes all rows
-- `WhereClause` model
-  - Single-condition matching
-  - Matching logic encapsulated in `WhereClause.matches()` so it can be extended without changing callers
-- Primary key uniqueness enforced on `INSERT`
-  - Duplicate keys are rejected with a `StorageException`
-- New `UpdateCommand`; `DeleteCommand` now carries an optional `WhereClause`
-- Parser additions: `parseUpdate()` and a reusable `parseOptionalWhereClause()` helper
-- Executor support for `UPDATE`, `DELETE` with `WHERE`, and PK validation on `INSERT`
-- Parser and Executor unit tests covering the full CRUD lifecycle
-
-### Sprint 5 — WHERE Operators & SELECT Filtering
-- `WhereClause` now carries an operator and supports:
-  - `=` (exact string equality)
-  - `>`, `<`, `>=`, `<=` (numeric comparison)
-- `SELECT ... FROM ... WHERE column <op> value` filtering
-  - Works with `SELECT *` and with specific column lists
-  - Omitting `WHERE` returns all rows
-- `UPDATE` and `DELETE` gained numeric comparison support automatically, with no changes to their executor code, because all matching goes through `WhereClause.matches()`
-- Parser additions:
-  - `parseComparisonOperator()` validates the operator token
-  - `parseOptionalWhereClause()` generalized to `WHERE <column> <operator> <value>`
-  - `parseSelect()` now accepts an optional `WHERE`
-- `SelectCommand` now carries an optional `WhereClause`
-- Numeric operators on non-numeric values (e.g. `WHERE name > 50`) fail loudly with an error instead of silently returning no rows
-- No tokenizer changes were needed; `>=` and `<=` were already single symbol tokens
-- New isolated unit tests for `WhereClause` (no parser or storage involved) plus new parser tests for operator parsing
-
-### Sprint 6 — ORDER BY
-- `ORDER BY <column> [ASC|DESC]` support on `SELECT`
-  - Defaults to `ASC` when no direction is given
-  - Combines cleanly with `WHERE` and column projection in a single fixed pipeline: **filter → sort → project**
-- New `OrderByClause` model — a plain data holder (column + direction), same pattern as `WhereClause`
-- Type-aware sort comparator in the Executor:
-  - Numeric comparison for `INT`/`DOUBLE` columns
-  - Lexicographic (`String.compareTo`) comparison for `STRING` columns
-  - Reads the column's declared type from `TableSchema` rather than guessing from the value
-- Sorting happens **before** column projection, so `SELECT name FROM employees ORDER BY salary` correctly sorts by `salary` even though it isn't in the output
-- Sorts on a defensive copy of the filtered row list rather than mutating in place
-- `SelectCommand` now carries an optional `OrderByClause`
-- Parser addition: `parseOptionalOrderByClause()`, following the same optional-clause chaining pattern established by `WHERE`
-- New parser tests (ASC default, DESC, combined with WHERE) and an end-to-end Executor test verifying sort order against real stored rows
-
-### Sprint 7 — Persistence Proof + Polish
-- Persistence formally verified — see [Persistence](#persistence) below.
-- **Command history** added to the CLI:
-  - In-memory `commandHistory` list recorded on every non-empty input
-  - New `HISTORY` command lists all commands run in the current session, numbered in order
-- **Consistent error handling** across the CLI:
-  - Dedicated `catch` blocks for `SyntaxException` (`[SYNTAX ERROR]`), `StorageException` (`[STORAGE ERROR]`), and `IllegalStateException` (`[EXECUTION ERROR]`), with a generic `[ERROR]` fallback
-  - Audited all thrown exceptions across `Parser`, `StorageEngine`, and `Executor` to ensure messages name the specific offending table/column/value and never leak a raw stack trace or a `null` message
-  - Verified edge cases (e.g. querying a nonexistent table) return a clean, specific error instead of an uncaught exception
-- `HELP` text updated to reflect every feature through Sprint 6 (`WHERE` operators, `ORDER BY`, full CRUD, `HISTORY`), replacing the stale Sprint-0-era text
-- **Regression pass**: full `mvn test` suite plus a manual end-to-end walkthrough exercising every feature together (create/use/drop DB and table, insert, filter, sort, update, delete, history) with no crashes or stack traces
-- New full-pipeline integration test (`fullCrudLifecycleWorksTogether`) verifying `WHERE` + `ORDER BY` + projection + `UPDATE` + `DELETE` all cooperate correctly in combination — something isolated per-feature unit tests can't catch on their own
-
-**Known limitations:**
-- Only a single `WHERE` condition is supported (no `AND` / `OR` yet)
-- Only a single `ORDER BY` column is supported (no multi-column sort, e.g. `ORDER BY dept, salary`)
-- No `LIMIT` clause yet
-- Every `UPDATE` and `DELETE` reads all rows and rewrites the whole table file (O(n)). This is correct but not optimized, and is not yet safe for concurrent access. A write-ahead log or in-place row updates would be a natural v2 improvement.
-- `SELECT` with `WHERE` or `ORDER BY` performs a full table scan (no indexes)
+| Feature | Status |
+|---|---|
+| CREATE / USE / DROP / SHOW DATABASES | ✅ |
+| CREATE / DROP / SHOW / DESCRIBE TABLE | ✅ |
+| INSERT (with primary key uniqueness check) | ✅ |
+| SELECT (`*` or named columns) | ✅ |
+| WHERE (`=`, `>`, `<`, `>=`, `<=`) | ✅ |
+| ORDER BY (ASC / DESC, type-aware) | ✅ |
+| UPDATE / DELETE (with WHERE) | ✅ |
+| Command history (`HISTORY`) | ✅ |
+| Persistence across restarts (verified, incl. `kill -9` test) | ✅ |
+| Compound conditions (`AND` / `OR`) | 🔜 future |
+| `LIMIT` clause | 🔜 future |
+| Hash indexes | 🔜 v1.1 |
+| Transactions | 🔜 v1.2 |
+| Concurrency | 🔜 v1.3 |
 
 ---
 
-## Persistence
+## Quick start
 
-MiniDB writes every INSERT, UPDATE, and DELETE directly to disk (`data/<database>/<table>.data`) using `Files.writeString`, with no in-memory buffering between a command and its file write.
+Requires Java 17+ and Maven.
 
-Verified manually:
-- Inserted rows, exited the CLI completely, restarted, and confirmed all data and schema (via `SELECT`, `SHOW TABLES`, `DESCRIBE`) were intact.
-- Raw `.meta` and `.data` files were inspected directly with `cat` to confirm on-disk state independent of MiniDB's own output.
-- Force-killed the process (`kill -9`) immediately after a single INSERT to simulate a crash mid-session, restarted, and confirmed the previously committed row was intact and uncorrupted, with no partial/corrupted writes.
+```bash
+git clone https://github.com/<your-username>/minidb.git
+cd minidb
+mvn clean package
+java -jar target/minidb.jar
+```
 
-**Known limitation:** UPDATE and DELETE currently rewrite the entire `.data` file rather than modifying a single row in place. This is correct but not efficient for very large tables — a write-ahead log or in-place row updates would be a natural v2 improvement.
+Or run the bundled demo non-interactively:
 
----
-
-## Example Session
-
-```sql
-CREATE DATABASE company;
-USE company;
-CREATE TABLE employees (id INT PRIMARY KEY, name STRING, salary DOUBLE);
-INSERT INTO employees VALUES(1, 'John', 50000);
-INSERT INTO employees VALUES(2, 'Priya', 62000);
-INSERT INTO employees VALUES(3, 'Amit', 45000);
-INSERT INTO employees VALUES(1, 'Duplicate', 10000);  -- rejected: duplicate primary key
-
-SELECT * FROM employees WHERE salary>50000;           -- Priya
-SELECT * FROM employees WHERE salary<=50000;          -- John, Amit
-SELECT name FROM employees WHERE id=2;                -- Priya
-
-SELECT * FROM employees ORDER BY salary DESC;         -- Priya, John, Amit
-SELECT name FROM employees WHERE salary>40000 ORDER BY salary ASC;  -- Amit, John, Priya
-
-UPDATE employees SET salary=65000 WHERE id=1;
-DELETE FROM employees WHERE salary<50000;             -- removes Amit
-SELECT * FROM employees;
-HISTORY
-EXIT
+```bash
+java -jar target/minidb.jar < demo/demo.sql
 ```
 
 ---
 
-## Supported WHERE Operators
+## Example session
 
-| Operator | Meaning               | Comparison |
-|----------|-----------------------|------------|
-| `=`      | Equal                 | String     |
-| `>`      | Greater than          | Numeric    |
-| `<`      | Less than             | Numeric    |
-| `>=`     | Greater than or equal | Numeric    |
-| `<=`     | Less than or equal    | Numeric    |
+```
+MiniDB> CREATE DATABASE company;
+Database created: company
+MiniDB> USE company;
+Using database: company
+MiniDB> CREATE TABLE employees (id INT PRIMARY KEY, name STRING, salary DOUBLE);
+Table created: employees
+MiniDB> INSERT INTO employees VALUES(1, 'John', 50000);
+1 row inserted.
+MiniDB> INSERT INTO employees VALUES(2, 'Priya', 62000);
+1 row inserted.
+MiniDB> INSERT INTO employees VALUES(3, 'Amit', 45000);
+1 row inserted.
+MiniDB> SELECT name, salary FROM employees WHERE salary>48000 ORDER BY salary DESC;
+name | salary
+Priya | 62000
+John | 50000
+MiniDB> UPDATE employees SET salary=70000 WHERE id=3;
+1 row(s) updated.
+MiniDB> DELETE FROM employees WHERE id=1;
+1 row(s) deleted.
+MiniDB> SELECT * FROM employees;
+id | name | salary
+2 | Priya | 62000
+3 | Amit | 70000
+MiniDB> DROP DATABASE company;
+Database dropped: company
+MiniDB> EXIT
+Goodbye.
+```
 
-## Supported ORDER BY
-
-| Syntax                  | Behavior                                   |
-|---------------------------|---------------------------------------------|
-| `ORDER BY column`         | Ascending (default), type-aware comparison |
-| `ORDER BY column ASC`     | Ascending, explicit                        |
-| `ORDER BY column DESC`    | Descending                                 |
-
-`ORDER BY` combines freely with `WHERE` and column projection — evaluation order is always **filter → sort → project**.
-
-## CLI Commands
-
-| Command   | Behavior                                    |
-|-----------|-----------------------------------------------|
-| `HELP`    | Lists all available commands                  |
-| `HISTORY` | Lists every command run so far this session    |
-| `EXIT`    | Exits the CLI                                  |
-
-## Error Message Format
-
-| Prefix              | Thrown by                            |
-|----------------------|-----------------------------------------|
-| `[SYNTAX ERROR]`    | `SyntaxException` (parser)              |
-| `[STORAGE ERROR]`   | `StorageException` (storage engine)     |
-| `[EXECUTION ERROR]` | `IllegalStateException` (executor)      |
-| `[ERROR]`           | Any other uncaught exception            |
+The full version of this session is in [`demo/demo.sql`](demo/demo.sql) — run it directly with `java -jar target/minidb.jar < demo/demo.sql`.
 
 ---
 
@@ -277,21 +133,82 @@ Disk
 
 ---
 
-## Run it
+## Storage format
 
-Requires Java 17+ and Maven.
+Each table is two plain-text files under `data/<database>/`:
 
-```bash
-git clone https://github.com/<your-username>/minidb.git
-cd minidb
-mvn compile
-mvn exec:java
+```text
+employees.meta          employees.data
+id|INT|PRIMARY          1|John|50000
+name|STRING|            2|Priya|62000
+salary|DOUBLE|           3|Amit|45000
 ```
 
-## Roadmap
+Plain text was chosen deliberately — you can `cat` the files while debugging instead of needing a binary-format reader.
 
-- v1.0 — Documentation pass, packaged jar, demo script (Sprint 8)
-- v1.1 — Hash indexing
-- v1.2 — Transactions (BEGIN / COMMIT / ROLLBACK)
-- v1.3 — Concurrency (read/write locks, thread pool)
-- v2.0 — B+ Tree index, WAL, recovery, client/server mode
+---
+
+## Persistence
+
+MiniDB writes every INSERT, UPDATE, and DELETE directly to disk (`data/<database>/<table>.data`) using `Files.writeString`, with no in-memory buffering between a command and its file write.
+
+Verified manually:
+- Inserted rows, exited the CLI completely, restarted, and confirmed all data and schema (via `SELECT`, `SHOW TABLES`, `DESCRIBE`) were intact.
+- Raw `.meta` and `.data` files were inspected directly with `cat` to confirm on-disk state independent of MiniDB's own output.
+- Force-killed the process (`kill -9`) immediately after a single INSERT to simulate a crash mid-session, restarted, and confirmed the previously committed row was intact and uncorrupted, with no partial/corrupted writes.
+
+---
+
+## Known limitations
+
+- **`|` in string values breaks the storage format** (no escaping yet).
+- **Single quotes inside strings** (e.g. `O'Brien`) are not supported by the tokenizer.
+- **UPDATE/DELETE rewrite the whole table file** — correct, but O(n) per statement, and not yet safe for concurrent access.
+- **Only a single WHERE condition is supported** — no `AND` / `OR` yet.
+- **Only a single ORDER BY column is supported** — no multi-column sort.
+- **No `LIMIT` clause yet.**
+- **No type validation on INSERT** beyond primary key uniqueness (e.g. text can currently be inserted into an INT column).
+- **`SELECT` with WHERE or ORDER BY performs a full table scan** — no indexes yet (planned for v1.1).
+- **Data directory is relative to the working directory** you launch from, not the jar's location.
+- **Single-threaded, no transactions** — planned for v1.2 and v1.3.
+
+---
+
+## Supported WHERE operators
+
+| Operator | Meaning | Comparison |
+|---|---|---|
+| `=` | Equal | String |
+| `>` | Greater than | Numeric |
+| `<` | Less than | Numeric |
+| `>=` | Greater than or equal | Numeric |
+| `<=` | Less than or equal | Numeric |
+
+## Supported ORDER BY
+
+| Syntax | Behavior |
+|---|---|
+| `ORDER BY column` | Ascending (default), type-aware comparison |
+| `ORDER BY column ASC` | Ascending, explicit |
+| `ORDER BY column DESC` | Descending |
+
+`ORDER BY` combines freely with `WHERE` and column projection — evaluation order is always **filter → sort → project**.
+
+## CLI commands
+
+| Command | Behavior |
+|---|---|
+| `HELP` | Lists all available commands |
+| `HISTORY` | Lists every command run so far this session |
+| `EXIT` | Exits the CLI |
+
+## Error message format
+
+| Prefix | Thrown by |
+|---|---|
+| `[SYNTAX ERROR]` | `SyntaxException` (parser) |
+| `[STORAGE ERROR]` | `StorageException` (storage engine) |
+| `[EXECUTION ERROR]` | `IllegalStateException` (executor) |
+| `[ERROR]` | Any other uncaught exception |
+
+---
